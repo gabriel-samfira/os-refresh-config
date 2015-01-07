@@ -15,15 +15,16 @@
 # under the License.
 
 import argparse
-import fcntl
 import logging
 import os
 import subprocess
 import sys
 import time
 
+import os_refresh_config.filelock as lock
+
 OLD_BASE_DIR = '/opt/stack/os-config-refresh'
-DEFAULT_BASE_DIR = '/usr/libexec/os-refresh-config'
+DEFAULT_BASE_DIR = '/usr/libex ec/os-refresh-config'
 
 
 def default_base_dir():
@@ -91,15 +92,15 @@ def main(argv=sys.argv):
     log.setLevel(options.log_level)
 
     # Keep open (and thus, locked) for duration of program
-    lock = open(options.lockfile, 'a')
+    lockfd = open(options.lockfile, 'a')
     try:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except IOError as e:
+        lock.lock(lockfd, lock.LOCK_EX | lock.LOCK_NB)
+    except lock.LockException as e:
         log.error('Could not lock %s. %s' % (options.lockfile, e))
         return e.errno
 
-    lock.truncate(0)
-    lock.write("Locked by pid==%d at %s\n" % (os.getpid(), time.localtime()))
+    lockfd.truncate(0)
+    lockfd.write("Locked by pid==%d at %s\n" % (os.getpid(), time.localtime()))
 
     for phase in PHASES:
         phase_dir = os.path.join(BASE_DIR, '%s.d' % phase)
@@ -128,8 +129,8 @@ def main(argv=sys.argv):
         else:
             log.debug('No dir for phase %s' % phase)
 
-    lock.truncate(0)
-    lock.close()
+    lockfd.truncate(0)
+    lockfd.close()
     return 0
 
 
