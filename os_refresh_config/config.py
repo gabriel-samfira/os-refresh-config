@@ -17,14 +17,13 @@
 import argparse
 import logging
 import os
+import platform
 import subprocess
 import sys
 import time
 
 import os_refresh_config.filelock as lock
-
-OLD_BASE_DIR = '/opt/stack/os-config-refresh'
-DEFAULT_BASE_DIR = '/usr/libex ec/os-refresh-config'
+from os_refresh_config.paths import *
 
 
 def default_base_dir():
@@ -71,7 +70,7 @@ def main(argv=sys.argv):
     parser.add_argument('--log-level', default='INFO',
                         choices=['ERROR', 'WARN', 'CRITICAL', 'INFO', 'DEBUG'])
     parser.add_argument('--lockfile',
-                        default='/var/run/os-refresh-config.lock',
+                        default=DEFAULT_LOCK_FILE,
                         help='Lock file to prevent multiple running copies.')
     options = parser.parse_args(argv[1:])
 
@@ -102,6 +101,10 @@ def main(argv=sys.argv):
     lockfd.truncate(0)
     lockfd.write("Locked by pid==%d at %s\n" % (os.getpid(), time.localtime()))
 
+    shell_args = {"close_fds": True}
+    if platform.system() == "Windows":
+        shell_args.update({"shell": True})
+
     for phase in PHASES:
         phase_dir = os.path.join(BASE_DIR, '%s.d' % phase)
         log.debug('Checking %s' % phase_dir)
@@ -111,7 +114,7 @@ def main(argv=sys.argv):
             try:
                 log.info('Starting phase %s' % phase)
                 log.debug('Running %s' % args)
-                subprocess.check_call(args, close_fds=True)
+                subprocess.check_call(args, **shell_args)
                 sys.stdout.flush()
                 sys.stderr.flush()
                 log.info('Completed phase %s' % phase)
